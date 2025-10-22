@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grand Teton Region – Quakes & Care Access</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #app { display: grid; grid-template-columns: 360px 1fr; height: 100%; }
+    #sidebar { padding: 14px 16px; overflow: auto; border-right: 1px solid #ddd; }
+    #map { height: 100%; width: 100%; }
+    h1 { margin: 0 0 8px; font-size: 20px; }
+    h2 { margin: 12px 0 6px; font-size: 16px; }
+    .badge { display: inline-block; padding: 2px 6px; border-radius: 6px; background: #eef; margin-left: 6px; font-size: 12px; }
+    .legend { background: white; padding: 8px 10px; border-radius: 6px; line-height: 1.4; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+    .legend .swatch { display:inline-block; width:12px; height:12px; margin-right:6px; border-radius:50%; vertical-align:middle; }
+    .note { font-size: 12px; color: #555; }
+    .footer { font-size: 12px; color: #666; margin-top: 8px; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#f6f8fa; padding:2px 6px; border-radius:6px; }
+    @media (max-width: 900px) {
+      #app { grid-template-columns: 1fr; grid-template-rows: 260px 1fr; }
+      #sidebar { border-right: none; border-bottom: 1px solid #ddd; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1>Grand Teton Region – Quakes & Care Access <span class="badge">Leaflet + Turf</span></h1>
+      <p>
+        This customized version focuses on <strong>Jackson / Grand Teton</strong> and nearby communities. Two JSON datasets are included:
+      </p>
+      <ol>
+        <li>
+          <strong>Earthquakes (sampled M≥3.5, 2019–2025, Greater Yellowstone)</strong> – illustrative points capturing regional seismicity around the Teton/Yellowstone area.
+        </li>
+        <li>
+          <strong>Hospitals & Clinics</strong> – key facilities serving Teton County, Star Valley, Teton Valley (ID), and Idaho Falls.
+        </li>
+      </ol>
+      <h2>Analysis</h2>
+      <p>
+        For each quake we compute the <em>nearest hospital/clinic</em> with <span class="code">turf.nearestPoint</span>, measure geodesic distance, draw a connection, and generate a <strong>magnitude-weighted heatmap</strong>. This highlights where shaking clusters and how far those clusters are from emergency care.
+      </p>
+      <h2>How to Use</h2>
+      <ul>
+        <li>Toggle layers (Markers, Heatmap, Connections) and switch basemaps.</li>
+        <li>Click any marker to see details plus nearest-facility distance.</li>
+      </ul>
+      <h2>Submission Notes</h2>
+      <p class="note">
+        Save as <span class="code">index.html</span> in your repo, enable <em>GitHub Pages</em>: Settings → Pages → Deploy from branch → <span class="code">main</span> / <span class="code">/ (root)</span>. Live link:
+        <br />
+        <span class="code">https://&lt;your-username&gt;.github.io/&lt;your-repo&gt;/</span>
+      </p>
+      <div class="footer">© 2025 • Leaflet, Turf.js, Leaflet.heat</div>
+    </aside>
+    <div id="map"></div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+  <script>
+    const earthquakes = [
+      { id: 'eq-gt-1', name: 'Teton Range (SW of Jenny Lake)', coords: [-110.815, 43.720], mag: 3.7, depth_km: 8.0,  time: '2021-05-11T10:15:00Z' },
+      { id: 'eq-gt-2', name: 'Yellowstone Lake (W shore)',     coords: [-110.560, 44.480], mag: 4.2, depth_km: 6.5,  time: '2022-09-08T03:41:00Z' },
+      { id: 'eq-gt-3', name: 'Jackson Hole (NE of Town)',      coords: [-110.700, 43.540], mag: 3.9, depth_km: 7.0,  time: '2020-07-02T18:22:00Z' },
+      { id: 'eq-gt-4', name: 'Teton Pass (WY/ID line)',        coords: [-110.960, 43.500], mag: 3.6, depth_km: 9.2,  time: '2019-10-14T06:09:00Z' },
+      { id: 'eq-gt-5', name: 'Hoback Junction',                coords: [-110.770, 43.300], mag: 3.8, depth_km: 10.0, time: '2023-03-19T12:05:00Z' },
+      { id: 'eq-gt-6', name: 'Driggs, ID (E foothills)',       coords: [-111.100, 43.730], mag: 3.5, depth_km: 5.0,  time: '2024-06-27T09:50:00Z' },
+      { id: 'eq-gt-7', name: 'Pinedale area (Wind River F.)',  coords: [-109.860, 42.870], mag: 3.9, depth_km: 11.0, time: '2025-01-22T04:10:00Z' }
+    ];
+
+    const hospitals = [
+      { id: 'h-jh-1', name: "St. John's Health (Hospital)", coords: [-110.759, 43.484], city: 'Jackson, WY' },
+      { id: 'h-jh-2', name: "St. John's Urgent Care (Smith's)", coords: [-110.761, 43.473], city: 'Jackson, WY' },
+      { id: 'h-tv-1', name: 'Teton Valley Hospital', coords: [-111.108, 43.724], city: 'Driggs, ID' },
+      { id: 'h-sv-1', name: 'Star Valley Health', coords: [-110.933, 42.728], city: 'Afton, WY' },
+      { id: 'h-if-1', name: 'EIRMC – Eastern Idaho Regional', coords: [-112.020, 43.492], city: 'Idaho Falls, ID' }
+    ];
+
+    const map = L.map('map', {
+      center: [43.6, -110.8],
+      zoom: 8
+    });
+
+    const basemapStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const basemapSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Tiles &copy; Esri — Sources: Esri, USDA, USGS, etc.'
+    });
+
+    const basemapTerrain = L.tileLayer('https://stamen-tiles.a.ssl.fastly.net/terrain/{z}/{x}/{y}.jpg', {
+      maxZoom: 17,
+      attribution: 'Map tiles by Stamen Design (CC BY 3.0). Data by OpenStreetMap (ODbL).'
+    });
+
+    function circleIcon(color) {
+      return L.divIcon({
+        className: 'custom-circle-icon',
+        html: `<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 0 1px rgba(0,0,0,0.25);"></span>`,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
+    }
+
+    const eqLayer = L.layerGroup();
+    const hospitalLayer = L.layerGroup();
+    const connectionLayer = L.layerGroup();
+
+    const hospitalFC = turf.featureCollection(hospitals.map(h => turf.point(h.coords, h)));
+
+    earthquakes.forEach(e => {
+      const nearest = turf.nearestPoint(turf.point(e.coords), hospitalFC);
+      const nearestProps = nearest.properties;
+      const distanceKm = turf.distance(turf.point(e.coords), nearest, { units: 'kilometers' });
+
+      const m = L.marker([e.coords[1], e.coords[0]], { icon: circleIcon('#e63946'), title: e.name });
+      m.bindPopup(`
+        <strong>Earthquake:</strong> ${e.name}<br/>
+        <strong>Magnitude:</strong> ${e.mag}<br/>
+        <strong>Depth:</strong> ${e.depth_km} km<br/>
+        <strong>Time:</strong> ${new Date(e.time).toUTCString()}<br/>
+        <hr/>
+        <strong>Nearest Facility:</strong> ${nearestProps.name} (${nearestProps.city})<br/>
+        <strong>Distance:</strong> ${distanceKm.toFixed(1)} km
+      `);
+      eqLayer.addLayer(m);
+
+      const line = L.polyline([
+        [e.coords[1], e.coords[0]],
+        [nearest.geometry.coordinates[1], nearest.geometry.coordinates[0]]
+      ], { color: '#e76f51', weight: 2, opacity: 0.85 });
+      line.bindTooltip(`${e.name} → ${nearestProps.name}: ${distanceKm.toFixed(1)} km`);
+      connectionLayer.addLayer(line);
+    });
+
+    hospitals.forEach(h => {
+      const m = L.marker([h.coords[1], h.coords[0]], { icon: circleIcon('#1d3557'), title: h.name });
+      m.bindPopup(`
+        <strong>Facility:</strong> ${h.name}<br/>
+        <strong>City:</strong> ${h.city}
+      `);
+      hospitalLayer.addLayer(m);
+    });
+
+    const heatPoints = earthquakes.map(e => [e.coords[1], e.coords[0], Math.max(0.5, e.mag / 5.0)]);
+    const heatLayer = L.heatLayer(heatPoints, { radius: 26, blur: 16, maxZoom: 10 });
+
+    eqLayer.addTo(map);
+    hospitalLayer.addTo(map);
+
+    const baseMaps = {
+      'Street (OSM)': basemapStreet,
+      'Satellite (Esri)': basemapSatellite,
+      'Terrain (Stamen)': basemapTerrain
+    };
+
+    const overlays = {
+      'Earthquakes (markers)': eqLayer,
+      'Hospitals/Clinics (markers)': hospitalLayer,
+      'Earthquake Heatmap': heatLayer,
+      'Nearest Connections': connectionLayer
+    };
+
+    L.control.layers(baseMaps, overlays, { collapsed: false, position: 'topright' }).addTo(map);
+
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML = `
+        <div><span class="swatch" style="background:#e63946"></span>Earthquake</div>
+        <div><span class="swatch" style="background:#1d3557"></span>Hospital/Clinic</div>
+        <div style="margin-top:6px; font-size:12px; color:#555;">Heatmap intensity ∝ magnitude</div>
+      `;
+      return div;
+    };
+    legend.addTo(map);
+
+    const allCoords = [...earthquakes.map(e => [e.coords[1], e.coords[0]]), ...hospitals.map(h => [h.coords[1], h.coords[0]])];
+    const bounds = L.latLngBounds(allCoords);
+    map.fitBounds(bounds.pad(0.2));
+  </script>
+</body>
+</html>
