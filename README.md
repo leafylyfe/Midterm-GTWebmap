@@ -21,20 +21,9 @@ Each earthquake is analyzed for its **nearest medical facility** using Turf.js�
 - Layer controls for toggling heatmaps and connections
 - Legend and responsive layout
 
-### How to View
-You can view the map locally or host it on GitHub Pages.
-
 #### Local Viewing
 1. Download and unzip this folder.
 2. Open `index.html` in your browser.
-
-#### GitHub Pages Hosting
-1. Create a new GitHub repository (e.g., `grand-teton-quakes-map`).
-2. Upload `index.html` and `README.md` to the root of your repo.
-3. Go to **Settings → Pages → Build and Deployment → Source → Deploy from Branch**.
-4. Select the `main` branch and the `/ (root)` folder.
-5. Click **Save**.
-6. Your map will be live at `https://<your-username>.github.io/grand-teton-quakes-map/`.
 
 ### Example Map Layers
 - **Earthquakes (red markers)** – Show magnitude, depth, and nearest facility.
@@ -43,6 +32,6 @@ You can view the map locally or host it on GitHub Pages.
 - **Connections** – Lines from each quake to the nearest hospital.
 
 ### Author
-Created by *Kristina Matunis* for a geospatial web mapping assignment using Leaflet and Turf.js.  
+Created by *Krystyna Matunis* for a geospatial web mapping assignment using Leaflet and Turf.js.  
 © 2025 – Open-source educational use.
 
